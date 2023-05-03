@@ -1,16 +1,11 @@
 package com.example.chromacity
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.ImageCapture
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.chromacity.databinding.ActivityMainBinding
@@ -21,18 +16,12 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.core.Preview
 import androidx.camera.core.CameraSelector
 import android.util.Log
+import android.view.View
+import android.widget.TextView
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
-import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.MediaStoreOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.VideoRecordEvent
-import androidx.core.content.PermissionChecker
+import androidx.camera.view.PreviewView
 import java.nio.ByteBuffer
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 typealias LumaListener = (luma: Double) -> Unit
 
@@ -57,18 +46,19 @@ class MainActivity : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
+        val dataText = findViewById<TextView>(R.id.dataText)
+        dataText.text = "New text"
+
         cameraExecutor = Executors.newSingleThreadExecutor()
-
-
     }
 
-    private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+    private class AnalyzeColourData() : ImageAnalysis.Analyzer {
 
         private fun ByteBuffer.toByteArray(): ByteArray {
-            rewind()    // Rewind the buffer to zero
+            rewind()
             val data = ByteArray(remaining())
-            get(data)   // Copy the buffer into a byte array
-            return data // Return the byte array
+            get(data)
+            return data
         }
 
         override fun analyze(image: ImageProxy) {
@@ -76,9 +66,9 @@ class MainActivity : AppCompatActivity() {
             val buffer = image.planes[0].buffer
             val data = buffer.toByteArray()
             val pixels = data.map { it.toInt() and 0xFF }
-            val luma = pixels.average()
+//            val luma = pixels.average()
 
-            listener(luma)
+//            listener(luma)
 
             image.close()
         }
@@ -93,18 +83,12 @@ class MainActivity : AppCompatActivity() {
 
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder()
-                .build()
-                .also {
+            val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
-            val imageAnalyzer = ImageAnalysis.Builder()
-                .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor, LuminosityAnalyzer { luma ->
-                        Log.d(TAG, "Average luminosity: $luma")
-                    })
+            val imageAnalyzer = ImageAnalysis.Builder().build().also {
+                    it.setAnalyzer(cameraExecutor, AnalyzeColourData())
                 }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
