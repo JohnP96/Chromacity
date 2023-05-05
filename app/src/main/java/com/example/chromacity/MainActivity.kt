@@ -4,24 +4,22 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.chromacity.databinding.ActivityMainBinding
+import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import android.widget.Toast
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.core.Preview
-import androidx.camera.core.CameraSelector
-import android.util.Log
-import android.view.View
-import android.widget.TextView
-import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageProxy
-import androidx.camera.view.PreviewView
-import java.nio.ByteBuffer
 
 typealias LumaListener = (luma: Double) -> Unit
 
@@ -38,7 +36,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-        // Request camera permissions
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -46,13 +43,10 @@ class MainActivity : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
-        val dataText = findViewById<TextView>(R.id.dataText)
-        dataText.text = "New text"
-
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private class AnalyzeColourData() : ImageAnalysis.Analyzer {
+    private class AnalyzeColourData(private val listener: LumaListener) : ImageAnalysis.Analyzer {
 
         private fun ByteBuffer.toByteArray(): ByteArray {
             rewind()
@@ -66,9 +60,9 @@ class MainActivity : AppCompatActivity() {
             val buffer = image.planes[0].buffer
             val data = buffer.toByteArray()
             val pixels = data.map { it.toInt() and 0xFF }
-//            val luma = pixels.average()
+            val luma = pixels.average()
 
-//            listener(luma)
+            listener(luma)
 
             image.close()
         }
@@ -76,19 +70,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun takePhoto() {}
 
-    private fun startCamera() {
+    private fun startCamera(){
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
 
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
             val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
-                    it.setAnalyzer(cameraExecutor, AnalyzeColourData())
+                    it.setAnalyzer(cameraExecutor, AnalyzeColourData() {
+                            luma -> runOnUiThread {
+                                val dataText = findViewById<TextView>(R.id.dataText)
+                                dataText.text = luma.toString()
+                            }
+                    })
                 }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
