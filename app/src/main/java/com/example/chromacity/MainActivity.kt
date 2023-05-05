@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 typealias LumaListener = (luma: Double) -> Unit
+typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
 
 
 class MainActivity : AppCompatActivity() {
@@ -46,7 +47,7 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
-    private class AnalyzeColourData(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+    private class AnalyzeColourData(private val listener: ColourListener) : ImageAnalysis.Analyzer {
 
         private fun ByteBuffer.toByteArray(): ByteArray {
             rewind()
@@ -56,13 +57,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun analyze(image: ImageProxy) {
+            val planes = image.planes
+            val height = image.height
+            val width = image.width
 
-            val buffer = image.planes[0].buffer
-            val data = buffer.toByteArray()
-            val pixels = data.map { it.toInt() and 0xFF }
-            val luma = pixels.average()
+            val yByteArray = planes[0].buffer.toByteArray()
+            val uByteArray = planes[1].buffer.toByteArray()
+            val vByteArray = planes[2].buffer.toByteArray()
 
-            listener(luma)
+            val y = yByteArray[(height * planes[0].rowStride +
+                    width * planes[0].pixelStride) / 2].toInt() and 255
+            val u = (uByteArray[(height * planes[1].rowStride +
+                    width * planes[1].pixelStride) / 4].toInt() and 255) - 128
+            val v = (vByteArray[(height * planes[2].rowStride +
+                    width * planes[2].pixelStride) / 4].toInt() and 255) - 128
+
+            val colour = Triple(y, u, v)
+
+//            val buffer = image.planes[0].buffer
+//            val data = buffer.toByteArray()
+//            val pixels = data.map { it.toInt() and 0xFF }
+//            val luma = pixels.average()
+
+            listener(colour)
 
             image.close()
         }
@@ -82,9 +99,9 @@ class MainActivity : AppCompatActivity() {
 
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
                     it.setAnalyzer(cameraExecutor, AnalyzeColourData() {
-                            luma -> runOnUiThread {
+                            colour -> runOnUiThread {
                                 val dataText = findViewById<TextView>(R.id.dataText)
-                                dataText.text = luma.toString()
+                                dataText.text = colour.toString()
                             }
                     })
                 }
