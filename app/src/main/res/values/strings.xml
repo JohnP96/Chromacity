@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Chromacity</string>
     <string name="title_activity_main">Chromacity</string>
-    <string name="placeholder_text">Is this working?</string>
+    <string name="placeholder_text">YUV</string>
 </resources>

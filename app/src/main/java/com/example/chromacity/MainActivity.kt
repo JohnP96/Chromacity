@@ -16,6 +16,8 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import com.example.chromacity.databinding.ActivityMainBinding
 import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
@@ -28,13 +30,13 @@ typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
 class MainActivity : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA")
     private lateinit var viewBinding: ActivityMainBinding
-
     private var imageCapture: ImageCapture? = null
 
     private lateinit var cameraExecutor: ExecutorService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+//        Python.start(AndroidPlatform(baseContext))
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         if (allPermissionsGranted()) {
@@ -102,6 +104,8 @@ class MainActivity : AppCompatActivity() {
                             colour -> runOnUiThread {
                                 val dataText = findViewById<TextView>(R.id.dataText)
                                 dataText.text = colour.toString()
+                                val testText = findViewById<TextView>(R.id.testText)
+                                testText.text = ""
                             }
                     })
                 }
