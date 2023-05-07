@@ -1,7 +1,17 @@
 package com.example.chromacity
 
+/**
+ * TODO: Change image sensor to use more than 1 pixel
+ * TODO: Get average YUV and FFT
+ */
+
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -10,7 +20,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
-import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -22,21 +31,23 @@ import com.example.chromacity.databinding.ActivityMainBinding
 import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
-typealias LumaListener = (luma: Double) -> Unit
+
 typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
-
+typealias LumaListener = (luma: Double) -> Unit
 
 class MainActivity : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA")
     private lateinit var viewBinding: ActivityMainBinding
-    private var imageCapture: ImageCapture? = null
-
-    private lateinit var cameraExecutor: ExecutorService
+    private lateinit var sensorManager: SensorManager
+    private lateinit var appExecutor: ExecutorService
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        Python.start(AndroidPlatform(baseContext))
+        if (! Python.isStarted()) {
+            Python.start(AndroidPlatform(this))
+        }
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         if (allPermissionsGranted()) {
@@ -46,7 +57,11 @@ class MainActivity : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
-        cameraExecutor = Executors.newSingleThreadExecutor()
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+        sensorManager.registerListener(lightListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL)
+
+        appExecutor = Executors.newSingleThreadExecutor()
     }
 
     private class AnalyzeColourData(private val listener: ColourListener) : ImageAnalysis.Analyzer {
@@ -67,27 +82,32 @@ class MainActivity : AppCompatActivity() {
             val uByteArray = planes[1].buffer.toByteArray()
             val vByteArray = planes[2].buffer.toByteArray()
 
-            val y = yByteArray[(height * planes[0].rowStride +
-                    width * planes[0].pixelStride) / 2].toInt() and 255
-            val u = (uByteArray[(height * planes[1].rowStride +
-                    width * planes[1].pixelStride) / 4].toInt() and 255) - 128
-            val v = (vByteArray[(height * planes[2].rowStride +
-                    width * planes[2].pixelStride) / 4].toInt() and 255) - 128
+            // Get the pixel values for the center of the image
+            val yCenter = (height * planes[0].rowStride + width * planes[0].pixelStride) / 2
+            val uvCenter = (height * planes[1].rowStride + width * planes[1].pixelStride) / 4
 
-            val colour = Triple(y, u, v)
+            // Set a 50px square for the capture in the center of the screen
+            val yValues = yByteArray.slice(IntRange(yCenter-25, yCenter+25)).map {
+                it.toInt() and 255
+            }
+            val uValues = uByteArray.slice(IntRange(uvCenter-25, uvCenter+25)).map {
+                (it.toInt() and 255) - 128
+            }
+            val vValues = vByteArray.slice(IntRange(uvCenter-25, uvCenter+25)).map {
+                (it.toInt() and 255) - 128
+            }
+            val yAverage = yValues.average().roundToInt()
+            val uAverage = uValues.average().roundToInt()
+            val vAverage = vValues.average().roundToInt()
+            val imageData = Triple(yAverage, uAverage, vAverage)
 
-//            val buffer = image.planes[0].buffer
-//            val data = buffer.toByteArray()
-//            val pixels = data.map { it.toInt() and 0xFF }
-//            val luma = pixels.average()
-
-            listener(colour)
+            listener(imageData)
 
             image.close()
         }
     }
 
-    private fun takePhoto() {}
+    private fun findPaintMatch() {}
 
     private fun startCamera(){
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -100,12 +120,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
-                    it.setAnalyzer(cameraExecutor, AnalyzeColourData() {
+                    it.setAnalyzer(appExecutor, AnalyzeColourData() {
                             colour -> runOnUiThread {
                                 val dataText = findViewById<TextView>(R.id.dataText)
                                 dataText.text = colour.toString()
-                                val testText = findViewById<TextView>(R.id.testText)
-                                testText.text = ""
                             }
                     })
                 }
@@ -146,9 +164,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val lightListener: SensorEventListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            val lightValue = event.values[0]
+            runOnUiThread {
+                val testText = findViewById<TextView>(R.id.testText)
+                testText.text = lightValue.toString()
+            }
+        }
+        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        cameraExecutor.shutdown()
+        sensorManager.unregisterListener(lightListener)
+        appExecutor.shutdown()
     }
 
     companion object {
