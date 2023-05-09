@@ -1,25 +1,31 @@
 package com.example.chromacity
 
-/**
- * TODO: Change image sensor to use more than 1 pixel
- * TODO: Get average YUV and FFT
- */
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
+import android.util.AttributeSet
 import android.util.Log
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -29,19 +35,22 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.example.chromacity.databinding.ActivityMainBinding
 import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
 
 typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
-typealias LumaListener = (luma: Double) -> Unit
+//typealias LumaListener = (luma: Double) -> Unit
 
 class MainActivity : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA")
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var sensorManager: SensorManager
     private lateinit var appExecutor: ExecutorService
+    private var imageCapture: ImageCapture? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +69,8 @@ class MainActivity : AppCompatActivity() {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
         sensorManager.registerListener(lightListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL)
+
+        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
 
         appExecutor = Executors.newSingleThreadExecutor()
     }
@@ -119,6 +130,9 @@ class MainActivity : AppCompatActivity() {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
+            imageCapture = ImageCapture.Builder()
+                .build()
+
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
                     it.setAnalyzer(appExecutor, AnalyzeColourData() {
                             colour -> runOnUiThread {
@@ -134,7 +148,7 @@ class MainActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
 
                 cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageAnalyzer)
+                    this, cameraSelector, preview, imageAnalyzer, imageCapture)
 
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -179,6 +193,78 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         sensorManager.unregisterListener(lightListener)
         appExecutor.shutdown()
+    }
+
+    private fun takePhoto() {
+        // Get a stable reference of the modifiable image capture use case
+        val imageCapture = imageCapture ?: return
+        Log.d(TAG, "photo")
+        // Create time stamped name and MediaStore entry.
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.UK)
+            .format(System.currentTimeMillis())
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
+            }
+        }
+
+        // Create output options object which contains file + metadata
+        val outputOptions = ImageCapture.OutputFileOptions
+            .Builder(contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues)
+            .build()
+
+        // Set up image capture listener, which is triggered after photo has
+        // been taken
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
+                }
+
+                override fun
+                        onImageSaved(output: ImageCapture.OutputFileResults){
+                    val msg = "Photo capture succeeded: ${output.savedUri}"
+                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, msg)
+                }
+            }
+        )
+    }
+
+    class OverlayView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+        private val paint = Paint()
+        private val targets: MutableList<Rect> = ArrayList()
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+
+            synchronized(this) {
+                for (entry in targets) {
+                    canvas.drawRect(entry, paint)
+                }
+            }
+        }
+
+        fun setTargets(sources: List<Rect>) {
+            synchronized(this) {
+                targets.clear()
+                targets.addAll(sources)
+                this.postInvalidate()
+            }
+        }
+
+        init {
+            val density = context.resources.displayMetrics.density
+            paint.strokeWidth = 2.0f * density
+            paint.color = Color.BLUE
+            paint.style = Paint.Style.STROKE
+        }
     }
 
     companion object {
