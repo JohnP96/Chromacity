@@ -13,6 +13,8 @@
         android:required="true"/>
     <uses-permission android:name="android.permission.CAMERA"
         android:required="true" />
+    <uses-permission android:name="android.permission.FLASHLIGHT"
+        android:required="true"/>
 
     <application
         android:name="com.chaquo.python.android.PyApplication"

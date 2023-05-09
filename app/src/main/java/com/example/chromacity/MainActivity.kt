@@ -6,9 +6,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.PorterDuff
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -16,9 +15,9 @@ import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.AttributeSet
 import android.util.Log
-import android.view.View
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -43,12 +42,11 @@ import kotlin.math.roundToInt
 
 
 typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
-//typealias LumaListener = (luma: Double) -> Unit
 
 class MainActivity : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA")
     private lateinit var viewBinding: ActivityMainBinding
-    private lateinit var sensorManager: SensorManager
+//    private lateinit var sensorManager: SensorManager
     private lateinit var appExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
 
@@ -66,9 +64,9 @@ class MainActivity : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
-        sensorManager.registerListener(lightListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL)
+//        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+//        val lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+//        sensorManager.registerListener(lightListener, lightSensor, SensorManager.SENSOR_DELAY_NORMAL)
 
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
 
@@ -97,19 +95,20 @@ class MainActivity : AppCompatActivity() {
             val yCenter = (height * planes[0].rowStride + width * planes[0].pixelStride) / 2
             val uvCenter = (height * planes[1].rowStride + width * planes[1].pixelStride) / 4
 
-            // Set a 50px square for the capture in the center of the screen
-            val yValues = yByteArray.slice(IntRange(yCenter-25, yCenter+25)).map {
+            // Set a 200px square for the capture in the center of the screen
+            val numPixels = 100
+            val yValues = yByteArray.slice(IntRange(yCenter-numPixels, yCenter+numPixels)).map {
                 it.toInt() and 255
             }
-            val uValues = uByteArray.slice(IntRange(uvCenter-25, uvCenter+25)).map {
+            val uValues = uByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
                 (it.toInt() and 255) - 128
             }
-            val vValues = vByteArray.slice(IntRange(uvCenter-25, uvCenter+25)).map {
+            val vValues = vByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
                 (it.toInt() and 255) - 128
             }
-            val yAverage = yValues.average().roundToInt()
-            val uAverage = uValues.average().roundToInt()
-            val vAverage = vValues.average().roundToInt()
+            val yAverage = yByteArray[yCenter].toInt() and 255//yValues.average().roundToInt()
+            val uAverage = (uByteArray[uvCenter].toInt() and 255)-128//uValues.average().roundToInt()
+            val vAverage = (vByteArray[uvCenter].toInt() and 255)-128//vValues.average().roundToInt()
             val imageData = Triple(yAverage, uAverage, vAverage)
 
             listener(imageData)
@@ -147,9 +146,12 @@ class MainActivity : AppCompatActivity() {
             try {
                 cameraProvider.unbindAll()
 
-                cameraProvider.bindToLifecycle(
+                val cam = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer, imageCapture)
 
+                if (cam.cameraInfo.hasFlashUnit()){
+                    cam.cameraControl.enableTorch(true)
+                }
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -178,27 +180,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val lightListener: SensorEventListener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) {
-            val lightValue = event.values[0]
-            runOnUiThread {
-                val testText = findViewById<TextView>(R.id.testText)
-                testText.text = lightValue.toString()
-            }
-        }
-        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
-    }
+//    private val lightListener: SensorEventListener = object : SensorEventListener {
+//        override fun onSensorChanged(event: SensorEvent) {
+//            val lightValue = event.values[0]
+//            runOnUiThread {
+//                val testText = findViewById<TextView>(R.id.testText)
+//                testText.text = lightValue.toString()
+//            }
+//        }
+//        override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
+//    }
 
     override fun onDestroy() {
         super.onDestroy()
-        sensorManager.unregisterListener(lightListener)
+//        sensorManager.unregisterListener(lightListener)
         appExecutor.shutdown()
     }
 
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
-        Log.d(TAG, "photo")
+
         // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.UK)
             .format(System.currentTimeMillis())
@@ -237,35 +239,35 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    class OverlayView(context: Context, attrs: AttributeSet) : View(context, attrs) {
-        private val paint = Paint()
-        private val targets: MutableList<Rect> = ArrayList()
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-
-            synchronized(this) {
-                for (entry in targets) {
-                    canvas.drawRect(entry, paint)
-                }
-            }
-        }
-
-        fun setTargets(sources: List<Rect>) {
-            synchronized(this) {
-                targets.clear()
-                targets.addAll(sources)
-                this.postInvalidate()
-            }
-        }
-
-        init {
-            val density = context.resources.displayMetrics.density
-            paint.strokeWidth = 2.0f * density
-            paint.color = Color.BLUE
-            paint.style = Paint.Style.STROKE
-        }
-    }
+//    class OverlayView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+//        private val paint = Paint()
+//        private val targets: MutableList<Rect> = ArrayList()
+//
+//        override fun onDraw(canvas: Canvas) {
+//            super.onDraw(canvas)
+//
+//            synchronized(this) {
+//                for (entry in targets) {
+//                    canvas.drawRect(entry, paint)
+//                }
+//            }
+//        }
+//
+//        fun setTargets(sources: List<Rect>) {
+//            synchronized(this) {
+//                targets.clear()
+//                targets.addAll(sources)
+//                this.postInvalidate()
+//            }
+//        }
+//
+//        init {
+//            val density = context.resources.displayMetrics.density
+//            paint.strokeWidth = 2.0f * density
+//            paint.color = Color.BLUE
+//            paint.style = Paint.Style.STROKE
+//        }
+//    }
 
     companion object {
         private const val TAG = "CameraXApp"
