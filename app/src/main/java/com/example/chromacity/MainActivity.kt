@@ -33,6 +33,8 @@ import androidx.core.content.ContextCompat
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.example.chromacity.databinding.ActivityMainBinding
+import java.io.IOException
+import java.io.OutputStreamWriter
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -49,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 //    private lateinit var sensorManager: SensorManager
     private lateinit var appExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
+    private lateinit var imageData: Triple<Int, Int, Int>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -129,7 +132,7 @@ class MainActivity : AppCompatActivity() {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
-            imageCapture = ImageCapture.Builder()
+            imageCapture = ImageCapture.Builder().setFlashMode(ImageCapture.FLASH_MODE_ON)
                 .build()
 
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
@@ -137,6 +140,7 @@ class MainActivity : AppCompatActivity() {
                             colour -> runOnUiThread {
                                 val dataText = findViewById<TextView>(R.id.dataText)
                                 dataText.text = colour.toString()
+                                imageData = colour
                             }
                     })
                 }
@@ -149,9 +153,9 @@ class MainActivity : AppCompatActivity() {
                 val cam = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer, imageCapture)
 
-                if (cam.cameraInfo.hasFlashUnit()){
-                    cam.cameraControl.enableTorch(true)
-                }
+//                if (cam.cameraInfo.hasFlashUnit()){
+//                    cam.cameraControl.enableTorch(true)
+//                }
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
@@ -200,7 +204,7 @@ class MainActivity : AppCompatActivity() {
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
-
+        writeToFile(imageData.toString(), this)
         // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.UK)
             .format(System.currentTimeMillis())
@@ -239,35 +243,16 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-//    class OverlayView(context: Context, attrs: AttributeSet) : View(context, attrs) {
-//        private val paint = Paint()
-//        private val targets: MutableList<Rect> = ArrayList()
-//
-//        override fun onDraw(canvas: Canvas) {
-//            super.onDraw(canvas)
-//
-//            synchronized(this) {
-//                for (entry in targets) {
-//                    canvas.drawRect(entry, paint)
-//                }
-//            }
-//        }
-//
-//        fun setTargets(sources: List<Rect>) {
-//            synchronized(this) {
-//                targets.clear()
-//                targets.addAll(sources)
-//                this.postInvalidate()
-//            }
-//        }
-//
-//        init {
-//            val density = context.resources.displayMetrics.density
-//            paint.strokeWidth = 2.0f * density
-//            paint.color = Color.BLUE
-//            paint.style = Paint.Style.STROKE
-//        }
-//    }
+    private fun writeToFile(data: String, context: Context) {
+        try {
+            val outputStreamWriter =
+                OutputStreamWriter(context.openFileOutput("config.txt", MODE_APPEND))
+            outputStreamWriter.write(data)
+            outputStreamWriter.close()
+        } catch (e: IOException) {
+            Log.e("Exception", "File write failed: $e")
+        }
+    }
 
     companion object {
         private const val TAG = "CameraXApp"
