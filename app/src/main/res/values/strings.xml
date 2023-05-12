@@ -3,4 +3,5 @@
     <string name="title_activity_main">Chromacity</string>
     <string name="placeholder_text">YUV</string>
     <string name="find_match">Find match</string>
+    <string name="light">Light On/Off</string>
 </resources>

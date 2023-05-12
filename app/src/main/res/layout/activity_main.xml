@@ -19,6 +19,8 @@
         app:layout_constraintTop_toTopOf="parent">
     </androidx.camera.view.PreviewView>
 
+
+<!--Create the center reticle-->
     <View
         android:layout_width="5dp"
         android:layout_height="5dp"
@@ -43,16 +45,15 @@
         android:layout_marginBottom="20dp"
         android:background="@drawable/rectangle" />
 
-<!--        <TextView-->
-<!--            android:id="@+id/testText"-->
-<!--            android:layout_width="1dp"-->
-<!--            android:layout_weight="1"-->
-<!--            android:layout_height="wrap_content"-->
-<!--            android:layout_gravity="end|bottom"-->
-<!--            android:elevation="2dp"-->
-<!--            android:includeFontPadding="false"-->
-<!--            android:text="@string/placeholder_text"-->
-<!--            android:textSize="30sp" />-->
+<!--    <TextView-->
+<!--        android:id="@+id/testText"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_gravity="bottom|end"-->
+<!--        android:elevation="3dp"-->
+<!--        android:includeFontPadding="false"-->
+<!--        android:text="@string/placeholder_text"-->
+<!--        android:textSize="30sp" />-->
 
     <TextView
         android:id="@+id/dataText"
@@ -72,6 +73,16 @@
         android:layout_gravity="bottom|center"
         android:elevation="2dp"
         android:text="@string/find_match"/>
+
+    <Button
+        android:id="@+id/light_button"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginEnd="30dp"
+        android:layout_gravity="bottom|end"
+        android:elevation="2dp"
+        android:text="@string/light"/>
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/vertical_centerline"
