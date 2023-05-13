@@ -1,8 +1,10 @@
 package com.example.chromacity
 
+
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -25,7 +27,7 @@ import java.util.concurrent.Executors
 
 typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
 
-class MainActivity : AppCompatActivity() {
+class MatchColour : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA",
         "android.permission.MANAGE_EXTERNAL_STORAGE")
     private lateinit var viewBinding: ActivityMainBinding
@@ -34,11 +36,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var imageData: Triple<Int, Int, Int>
     private var lightOn = false
     private lateinit var cam: Camera
+    private lateinit var file: File
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
+        file = File("${filesDir}/colours.txt")
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -46,8 +50,10 @@ class MainActivity : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
+        val textBox = findViewById<EditText>(R.id.text_input)
+
         viewBinding.imageCaptureButton.setOnClickListener {
-            writeToFile(imageData.toString())
+            findPaintMatch()
         }
 
         viewBinding.lightButton.setOnClickListener{
@@ -58,6 +64,10 @@ class MainActivity : AppCompatActivity() {
                 cam.cameraControl.enableTorch(true)
                 true
             }
+        }
+
+        viewBinding.logColour.setOnClickListener{
+            writeToFile(textBox.text.toString() + ";" + imageData.toString())
         }
 
         appExecutor = Executors.newSingleThreadExecutor()
@@ -107,7 +117,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun findPaintMatch() {}
+    private fun findPaintMatch() {
+        for(line in file.readLines()){
+            var split = line.split(";")
+            Log.d("split", split.toString())
+//            var y = NEED TO GET yuv values from file
+//            if(split[])
+        }
+    }
 
     private fun startCamera(){
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -176,10 +193,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun writeToFile(data: String) {
         try {
-
-            val path = filesDir
-            Log.d("Exception", path.toString())
-            val file = File("${path}/colours.txt")
             Log.d("Exception", file.toString())
             Log.d("Exception", file.createNewFile().toString())
             file.appendText(data + "\n")
