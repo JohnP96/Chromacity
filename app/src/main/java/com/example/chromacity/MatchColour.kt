@@ -4,7 +4,12 @@ package com.example.chromacity
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.Button
 import android.widget.EditText
+import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -25,7 +30,9 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 
-typealias ColourListener = (colour: Triple<Int, Int, Int>) -> Unit
+typealias Colour = Triple<Int, Int, Int>
+typealias ColourListener = (colour: Colour) -> Unit
+
 
 class MatchColour : AppCompatActivity() {
     private val permissions = arrayOf("android.permission.CAMERA",
@@ -33,16 +40,19 @@ class MatchColour : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var appExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
-    private lateinit var imageData: Triple<Int, Int, Int>
+    private lateinit var colourData: Triple<Int, Int, Int>
     private var lightOn = false
     private lateinit var cam: Camera
     private lateinit var file: File
+    private lateinit var popupView: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
         file = File("${filesDir}/colours.txt")
+        Log.d("Create file", file.createNewFile().toString())
+//        popupWindow = PopupWindow(this)
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -67,7 +77,17 @@ class MatchColour : AppCompatActivity() {
         }
 
         viewBinding.logColour.setOnClickListener{
-            writeToFile(textBox.text.toString() + ";" + imageData.toString())
+            writeToFile(textBox.text.toString() + "," + colourData.toString() +
+                    "," + colourData.second.toString() + "," + colourData.third.toString())
+        }
+
+
+//        val inflater = getSystemService(LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        popupView = viewBinding.popupView
+        popupView.visibility = View.GONE
+
+        findViewById<Button>(R.id.close_popup).setOnClickListener{
+            popupView.visibility = View.GONE
         }
 
         appExecutor = Executors.newSingleThreadExecutor()
@@ -117,13 +137,36 @@ class MatchColour : AppCompatActivity() {
         }
     }
 
+    private fun compareColours(colourOne: Colour, colourTwo: Colour ): Boolean{
+        return colourOne.first == colourTwo.first && colourOne.second == colourTwo.second &&
+                colourOne.third == colourTwo.third
+    }
+
     private fun findPaintMatch() {
+        var matchingColour : Colour
+        var matchFound = false
         for(line in file.readLines()){
-            var split = line.split(";")
+            val split = line.split(",")
+            matchingColour = Triple(split[1].toInt(), split[2].toInt(), split[3].toInt())
             Log.d("split", split.toString())
-//            var y = NEED TO GET yuv values from file
-//            if(split[])
+            if(compareColours(colourData, matchingColour)){
+                runOnUiThread{
+                    val popupText = findViewById<TextView>(R.id.popup_text)
+                    popupText.text = getString(R.string.match_found, split[0])
+
+                }
+                matchFound = true
+                break
+            }
         }
+        if (!matchFound) {
+            runOnUiThread {
+                val popupText = findViewById<TextView>(R.id.popup_text)
+                popupText.text = getString(R.string.match_not_found)
+            }
+        }
+        popupView.visibility = View.VISIBLE
+//        popupWindow.showAtLocation(findViewById(R.id.viewFinder), Gravity.CENTER, 0, 0)
     }
 
     private fun startCamera(){
@@ -143,7 +186,7 @@ class MatchColour : AppCompatActivity() {
                             colour -> runOnUiThread {
                                 val dataText = findViewById<TextView>(R.id.dataText)
                                 dataText.text = colour.toString()
-                                imageData = colour
+                                colourData = colour
                             }
                     })
                 }
@@ -193,8 +236,6 @@ class MatchColour : AppCompatActivity() {
 
     private fun writeToFile(data: String) {
         try {
-            Log.d("Exception", file.toString())
-            Log.d("Exception", file.createNewFile().toString())
             file.appendText(data + "\n")
             val written = file.readText()
             Log.d("Exception", written)

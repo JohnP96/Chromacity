@@ -12,6 +12,9 @@
     <string name="second_fragment_label">Second Fragment</string>
     <string name="next">Next</string>
     <string name="previous">Previous</string>
+    <string name="match_found">We\'ve found a match! %1$s.</string>
+    <string name="match_not_found">No match found.</string>
+    <string name="close_popup">Close</string>
 
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris
