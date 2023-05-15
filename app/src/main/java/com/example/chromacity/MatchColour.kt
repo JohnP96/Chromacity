@@ -1,25 +1,26 @@
 package com.example.chromacity
 
 
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
-import android.view.Gravity
-import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
-import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.compose.ui.text.toUpperCase
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.chromacity.databinding.ActivityMainBinding
@@ -28,10 +29,14 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 
 typealias Colour = Triple<Int, Int, Int>
-typealias ColourListener = (colour: Colour) -> Unit
+typealias ColourData = Triple<Colour, Colour, String>
+typealias ColourListener = (colour: ColourData) -> Unit
 
 
 class MatchColour : AppCompatActivity() {
@@ -40,12 +45,14 @@ class MatchColour : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
     private lateinit var appExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
-    private lateinit var colourData: Triple<Int, Int, Int>
+    private lateinit var colourData: ColourData
     private var lightOn = false
     private lateinit var cam: Camera
     private lateinit var file: File
     private lateinit var popupView: View
+    private lateinit var textBox: EditText
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         viewBinding = ActivityMainBinding.inflate(layoutInflater)
@@ -60,7 +67,7 @@ class MatchColour : AppCompatActivity() {
                 this, permissions, REQUEST_CODE_PERMISSIONS)
         }
 
-        val textBox = findViewById<EditText>(R.id.text_input)
+        textBox = findViewById(R.id.text_input)
 
         viewBinding.imageCaptureButton.setOnClickListener {
             findPaintMatch()
@@ -77,8 +84,47 @@ class MatchColour : AppCompatActivity() {
         }
 
         viewBinding.logColour.setOnClickListener{
-            writeToFile(textBox.text.toString() + "," + colourData.toString() +
-                    "," + colourData.second.toString() + "," + colourData.third.toString())
+            val name = textBox.text.toString()
+            Log.d("Textbox", name)
+            var duplicateName = false
+            if(name != "") {
+                for(line in file.readLines()){
+                    if (line.split(",")[0] == name){
+                        duplicateName = true
+                        break
+                    }
+                }
+                if (!duplicateName) {
+                    /*
+                    Colour data is written to the file in the format: name,y,u,v,r,g,b,hex
+                     */
+                    writeToFile(
+                        name + "," + colourData.first.first.toString() +
+                                "," + colourData.first.second.toString() + "," +
+                                colourData.first.third.toString() + "," +
+                                colourData.second.first.toString() + "," +
+                                colourData.second.second.toString() + "," +
+                                colourData.second.third.toString() + "," + colourData.third
+                    )
+                    runOnUiThread {
+                        val popupText = findViewById<TextView>(R.id.popup_text)
+                        popupText.text = getString(R.string.colour_logged)
+                    }
+                }
+                else{
+                    runOnUiThread {
+                        val popupText = findViewById<TextView>(R.id.popup_text)
+                        popupText.text = getString(R.string.duplicate_colour_name)
+                    }
+                }
+            }
+            else{
+                runOnUiThread {
+                    val popupText = findViewById<TextView>(R.id.popup_text)
+                    popupText.text = getString(R.string.missing_colour_name)
+                }
+            }
+            popupView.visibility = View.VISIBLE
         }
 
 
@@ -89,6 +135,28 @@ class MatchColour : AppCompatActivity() {
         findViewById<Button>(R.id.close_popup).setOnClickListener{
             popupView.visibility = View.GONE
         }
+
+        val previewView = viewBinding.viewFinder
+        previewView.setOnTouchListener(View.OnTouchListener {
+                view: View, motionEvent: MotionEvent ->
+            when (motionEvent.action) {
+                MotionEvent.ACTION_DOWN -> return@OnTouchListener true
+                MotionEvent.ACTION_UP -> {
+                    // Get the MeteringPointFactory from PreviewView
+                    val factory = previewView.meteringPointFactory
+
+                    val point = factory.createPoint(motionEvent.x, motionEvent.y)
+
+                    val action = FocusMeteringAction.Builder(point).build()
+
+                    cam.cameraControl.startFocusAndMetering(action)
+
+                    return@OnTouchListener true
+                }
+
+                else -> return@OnTouchListener false
+            }
+        })
 
         appExecutor = Executors.newSingleThreadExecutor()
     }
@@ -126,10 +194,17 @@ class MatchColour : AppCompatActivity() {
 //            val vValues = vByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
 //                (it.toInt() and 255) - 128
 //            }
-            val yAverage = yByteArray[yCenter].toInt() and 255//yValues.average().roundToInt()
-            val uAverage = (uByteArray[uvCenter].toInt() and 255)-128//uValues.average().roundToInt()
-            val vAverage = (vByteArray[uvCenter].toInt() and 255)-128//vValues.average().roundToInt()
-            val imageData = Triple(yAverage, uAverage, vAverage)
+            val y = yByteArray[yCenter].toInt() and 255
+            val u = (uByteArray[uvCenter].toInt() and 255)-128
+            val v = (vByteArray[uvCenter].toInt() and 255)-128
+
+            val r = (y + 1.14*v).roundToInt()
+            val g = (y - 0.395*u - 0.581*v).roundToInt()
+            val b = (y + 2.032*u).roundToInt()
+
+            val hex = (r.toString(16) + g.toString(16) + b.toString(16)).uppercase()
+
+            val imageData = Triple(Triple(y, u, v), Triple(r,g,b), hex)
 
             listener(imageData)
 
@@ -137,32 +212,57 @@ class MatchColour : AppCompatActivity() {
         }
     }
 
-    private fun compareColours(colourOne: Colour, colourTwo: Colour ): Boolean{
-        return colourOne.first == colourTwo.first && colourOne.second == colourTwo.second &&
-                colourOne.third == colourTwo.third
+    private fun compareColours(colourOne: Colour, colourTwo: Colour ): Pair<Boolean, Double>{
+        Log.d("CompareColours", "One: $colourOne Two: $colourTwo")
+        val yOne = colourOne.first.toDouble()
+        val uOne = colourOne.second.toDouble()
+        val vOne = colourOne.third.toDouble()
+        val yTwo = colourTwo.first.toDouble()
+        val uTwo = colourTwo.second.toDouble()
+        val vTwo = colourTwo.third.toDouble()
+        val yDiff = (yOne - yTwo).pow(2)
+        val uDiff = (uOne - uTwo).pow(2)
+        val vDiff = (vOne - vTwo).pow(2)
+        Log.d("CompareColours", "y: $yDiff u: $uDiff v: $vDiff")
+        val eucDist = sqrt(yDiff + uDiff + vDiff)
+        val comparison = sqrt(yDiff) < 20 && sqrt(uDiff) < 2 && sqrt(vDiff) < 2
+        Log.d("CompareColours", comparison.toString())
+        return Pair(comparison, eucDist)
     }
 
     private fun findPaintMatch() {
         var matchingColour : Colour
         var matchFound = false
+        var closestMatch = Pair("None", 0.0)
         for(line in file.readLines()){
             val split = line.split(",")
             matchingColour = Triple(split[1].toInt(), split[2].toInt(), split[3].toInt())
             Log.d("split", split.toString())
-            if(compareColours(colourData, matchingColour)){
+            val comparison = compareColours(colourData.first, matchingColour)
+            if (closestMatch.second < comparison.second){
+                closestMatch = Pair(split[0], comparison.second)
+            }
+            if(comparison.first){
                 runOnUiThread{
                     val popupText = findViewById<TextView>(R.id.popup_text)
                     popupText.text = getString(R.string.match_found, split[0])
-
                 }
                 matchFound = true
                 break
             }
         }
         if (!matchFound) {
-            runOnUiThread {
-                val popupText = findViewById<TextView>(R.id.popup_text)
-                popupText.text = getString(R.string.match_not_found)
+            if (closestMatch.first == "None") {
+                runOnUiThread {
+                    val popupText = findViewById<TextView>(R.id.popup_text)
+                    popupText.text = getString(R.string.match_not_found)
+                }
+            }
+            else{
+                runOnUiThread {
+                    val popupText = findViewById<TextView>(R.id.popup_text)
+                    popupText.text = getString(R.string.closest_match_found, closestMatch.first)
+                }
             }
         }
         popupView.visibility = View.VISIBLE
@@ -182,11 +282,15 @@ class MatchColour : AppCompatActivity() {
             imageCapture = ImageCapture.Builder().build()
 
             val imageAnalyzer = ImageAnalysis.Builder().build().also {
-                    it.setAnalyzer(appExecutor, AnalyzeColourData {
-                            colour -> runOnUiThread {
-                                val dataText = findViewById<TextView>(R.id.dataText)
-                                dataText.text = colour.toString()
-                                colourData = colour
+                    it.setAnalyzer(appExecutor, AnalyzeColourData { colour ->
+                        runOnUiThread {
+                            val yuvText = findViewById<TextView>(R.id.yuvText)
+                            val rgbText = findViewById<TextView>(R.id.rgbText)
+                            val hexText = findViewById<TextView>(R.id.hexText)
+                            yuvText.text = getString(R.string.yuv,colour.first.toString())
+                            rgbText.text = getString(R.string.rgb,colour.second.toString())
+                            hexText.text = getString(R.string.hex,colour.third)
+                            colourData = colour
                             }
                     })
                 }
@@ -238,14 +342,9 @@ class MatchColour : AppCompatActivity() {
         try {
             file.appendText(data + "\n")
             val written = file.readText()
-            Log.d("Exception", written)
-//            runOnUiThread{
-//                val testText = findViewById<TextView>(R.id.testText)
-//                testText.text = file.toString()
-//            }
-//            val writer = file.printWriter()
+            Log.d("Write", written)
         } catch (e: IOException) {
-            Log.e("Exception", "File write failed: $e")
+            Log.e("Write", "File write failed: $e")
         }
     }
 

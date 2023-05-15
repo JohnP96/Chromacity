@@ -7,14 +7,17 @@
     <string name="autofill">Colour name</string>
     <string name="title_activity_add_colour">AddColour</string>
     <string name="log_colour">Log Colour</string>
-    <!-- Strings used for fragments for navigation -->
-    <string name="first_fragment_label">First Fragment</string>
-    <string name="second_fragment_label">Second Fragment</string>
-    <string name="next">Next</string>
-    <string name="previous">Previous</string>
-    <string name="match_found">We\'ve found a match! %1$s.</string>
+
+    <string name="match_found">We\'ve found a match! Name: %1$s</string>
     <string name="match_not_found">No match found.</string>
+    <string name="closest_match_found">Couldn\'t find match,our closest suggestion is: %1$s</string>
     <string name="close_popup">Close</string>
+    <string name="colour_logged">Colour logged</string>
+    <string name="missing_colour_name">Please enter a name for this colour.</string>
+    <string name="duplicate_colour_name">There is already a colour saved with that name</string>
+    <string name="yuv">YUV: %1$s</string>
+    <string name="rgb">RGB: %1$s</string>
+    <string name="hex">Hex: %1$s</string>
 
     <string name="lorem_ipsum">
         Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nam in scelerisque sem. Mauris
