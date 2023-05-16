@@ -58,7 +58,8 @@ class MatchColour : AppCompatActivity() {
         setContentView(viewBinding.root)
         file = File("${filesDir}/colours.txt")
         Log.d("Create file", file.createNewFile().toString())
-//        popupWindow = PopupWindow(this)
+        colourData = ColourData(Colour(0,0,0),
+            Colour(0,0,0), "")
         if (allPermissionsGranted()) {
             startCamera()
         } else {
@@ -266,7 +267,7 @@ class MatchColour : AppCompatActivity() {
             }
         }
         if (!matchFound) {
-            if (closestMatch.second < 30) {
+            if (closestMatch.second < 25) {
                 runOnUiThread {
                     val col = getColourFromFile(closestMatch.first)
                     val popupText = findViewById<TextView>(R.id.popup_text)
