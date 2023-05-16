@@ -69,7 +69,16 @@ class MatchColour : AppCompatActivity() {
         textBox = findViewById(R.id.text_input)
 
         viewBinding.imageCaptureButton.setOnClickListener {
-            findPaintMatch()
+            if(file.readLines().isNotEmpty()){
+                findPaintMatch()
+            }
+            else{
+                runOnUiThread {
+                    val popupText = findViewById<TextView>(R.id.popup_text)
+                    popupText.text = getString(R.string.no_colours_logged)
+                    popupView.visibility = View.VISIBLE
+                }
+            }
         }
 
         viewBinding.lightButton.setOnClickListener{
@@ -182,20 +191,20 @@ class MatchColour : AppCompatActivity() {
             val yCenter = (height * planes[0].rowStride + width * planes[0].pixelStride) / 2
             val uvCenter = (height * planes[1].rowStride + width * planes[1].pixelStride) / 4
 
-            // Set a 200px square for the capture in the center of the screen
-//            val numPixels = 100
-//            val yValues = yByteArray.slice(IntRange(yCenter-numPixels, yCenter+numPixels)).map {
-//                it.toInt() and 255
-//            }
-//            val uValues = uByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
-//                (it.toInt() and 255) - 128
-//            }
-//            val vValues = vByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
-//                (it.toInt() and 255) - 128
-//            }
-            val y = yByteArray[yCenter].toInt() and 255
-            val u = (uByteArray[uvCenter].toInt() and 255)-128
-            val v = (vByteArray[uvCenter].toInt() and 255)-128
+            // Set a 20px square for the capture in the center of the screen
+            val numPixels = 10
+            val yValues = yByteArray.slice(IntRange(yCenter-numPixels, yCenter+numPixels)).map {
+                it.toInt() and 255
+            }
+            val uValues = uByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
+                (it.toInt() and 255) - 128
+            }
+            val vValues = vByteArray.slice(IntRange(uvCenter-numPixels, uvCenter+numPixels)).map {
+                (it.toInt() and 255) - 128
+            }
+            val y = yValues.average().roundToInt() //yByteArray[yCenter].toInt() and 255
+            val u = uValues.average().roundToInt() //(uByteArray[uvCenter].toInt() and 255)-128
+            val v = vValues.average().roundToInt() //(vByteArray[uvCenter].toInt() and 255)-128
 
             val r = (y + 1.14*v).roundToInt()
             val g = (y - 0.395*u - 0.581*v).roundToInt()
@@ -232,19 +241,25 @@ class MatchColour : AppCompatActivity() {
     private fun findPaintMatch() {
         var matchingColour : Colour
         var matchFound = false
-        var closestMatch = Pair(listOf(""), 0.0)
-        for(line in file.readLines()){
+        var closestMatch = Pair(listOf(""), Double.MAX_VALUE)
+        val lines = file.readLines()
+        for(line in lines){
             val split = line.split(",")
             matchingColour = Colour(split[1].toInt(), split[2].toInt(), split[3].toInt())
             Log.d("split", split.toString())
             val comparison = compareColours(colourData.first, matchingColour)
-            if (closestMatch.second < comparison.second){
+            Log.d("ClosestMatch", comparison.second.toString())
+            if (closestMatch.second > comparison.second){
                 closestMatch = Pair(split, comparison.second)
+                Log.d("ClosestMatch", closestMatch.toString())
             }
             if(comparison.first){
                 runOnUiThread{
+                    val col = getColourFromFile(closestMatch.first)
+
                     val popupText = findViewById<TextView>(R.id.popup_text)
-                    popupText.text = getString(R.string.match_found, split[0])
+                    popupText.text = getString(R.string.match_found, col.first,
+                        col.second.first, col.second.second, col.second.third)
                 }
                 matchFound = true
                 break
@@ -252,8 +267,8 @@ class MatchColour : AppCompatActivity() {
         }
         if (!matchFound) {
             if (closestMatch.second < 30) {
-                val col = getColourFromFile(closestMatch.first)
                 runOnUiThread {
+                    val col = getColourFromFile(closestMatch.first)
                     val popupText = findViewById<TextView>(R.id.popup_text)
                     popupText.text = getString(R.string.closest_match_found, col.first,
                         col.second.first, col.second.second, col.second.third)

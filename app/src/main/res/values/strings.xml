@@ -8,7 +8,8 @@
     <string name="title_activity_add_colour">AddColour</string>
     <string name="log_colour">Log Colour</string>
 
-    <string name="match_found">We\'ve found a match! Name: %1$s</string>
+    <string name="match_found">We\'ve found a match!\n
+        Name: %1$s YUV: %2$s, RGB: %3$s, Hexcode: %4$s</string>
     <string name="match_not_found">No match found.</string>
     <string name="closest_match_found">Uncertain match, our closest suggestion is:\n
         Name: %1$s, YUV: %2$s, RGB: %3$s, Hexcode: %4$s</string>
@@ -19,6 +20,7 @@
     <string name="yuv">YUV: %1$s</string>
     <string name="rgb">RGB: %1$s</string>
     <string name="hex">Hex: %1$s</string>
+    <string name="no_colours_logged">There are no saved colours to match to.</string>
 
 
 </resources>
