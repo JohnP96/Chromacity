@@ -20,7 +20,6 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.compose.ui.text.toUpperCase
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.chromacity.databinding.ActivityMainBinding
@@ -138,7 +137,7 @@ class MatchColour : AppCompatActivity() {
 
         val previewView = viewBinding.viewFinder
         previewView.setOnTouchListener(View.OnTouchListener {
-                view: View, motionEvent: MotionEvent ->
+                _: View, motionEvent: MotionEvent ->
             when (motionEvent.action) {
                 MotionEvent.ACTION_DOWN -> return@OnTouchListener true
                 MotionEvent.ACTION_UP -> {
@@ -233,14 +232,14 @@ class MatchColour : AppCompatActivity() {
     private fun findPaintMatch() {
         var matchingColour : Colour
         var matchFound = false
-        var closestMatch = Pair("None", 0.0)
+        var closestMatch = Pair(listOf(""), 0.0)
         for(line in file.readLines()){
             val split = line.split(",")
-            matchingColour = Triple(split[1].toInt(), split[2].toInt(), split[3].toInt())
+            matchingColour = Colour(split[1].toInt(), split[2].toInt(), split[3].toInt())
             Log.d("split", split.toString())
             val comparison = compareColours(colourData.first, matchingColour)
             if (closestMatch.second < comparison.second){
-                closestMatch = Pair(split[0], comparison.second)
+                closestMatch = Pair(split, comparison.second)
             }
             if(comparison.first){
                 runOnUiThread{
@@ -252,21 +251,30 @@ class MatchColour : AppCompatActivity() {
             }
         }
         if (!matchFound) {
-            if (closestMatch.first == "None") {
+            if (closestMatch.second < 30) {
+                val col = getColourFromFile(closestMatch.first)
                 runOnUiThread {
                     val popupText = findViewById<TextView>(R.id.popup_text)
-                    popupText.text = getString(R.string.match_not_found)
+                    popupText.text = getString(R.string.closest_match_found, col.first,
+                        col.second.first, col.second.second, col.second.third)
                 }
             }
             else{
                 runOnUiThread {
                     val popupText = findViewById<TextView>(R.id.popup_text)
-                    popupText.text = getString(R.string.closest_match_found, closestMatch.first)
+                    popupText.text = getString(R.string.match_not_found)
                 }
             }
         }
         popupView.visibility = View.VISIBLE
 //        popupWindow.showAtLocation(findViewById(R.id.viewFinder), Gravity.CENTER, 0, 0)
+    }
+
+    private fun getColourFromFile(split: List<String>): Pair<String, ColourData>{
+        val yuv = Colour(split[1].toInt(), split[2].toInt(), split[3].toInt())
+        val rgb = Colour(split[4].toInt(), split[5].toInt(), split[6].toInt())
+        val hex = split[7]
+        return Pair(split[0],ColourData(yuv, rgb, hex))
     }
 
     private fun startCamera(){
