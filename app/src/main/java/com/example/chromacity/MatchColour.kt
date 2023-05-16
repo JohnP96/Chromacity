@@ -244,26 +244,19 @@ class MatchColour : AppCompatActivity() {
         var matchFound = false
         var closestMatch = Pair(listOf(""), Double.MAX_VALUE)
         val lines = file.readLines()
+        var comparison: Pair<Boolean, Double>
         for(line in lines){
             val split = line.split(",")
             matchingColour = Colour(split[1].toInt(), split[2].toInt(), split[3].toInt())
             Log.d("split", split.toString())
-            val comparison = compareColours(colourData.first, matchingColour)
+            comparison = compareColours(colourData.first, matchingColour)
             Log.d("ClosestMatch", comparison.second.toString())
             if (closestMatch.second > comparison.second){
                 closestMatch = Pair(split, comparison.second)
                 Log.d("ClosestMatch", closestMatch.toString())
             }
             if(comparison.first){
-                runOnUiThread{
-                    val col = getColourFromFile(closestMatch.first)
-
-                    val popupText = findViewById<TextView>(R.id.popup_text)
-                    popupText.text = getString(R.string.match_found, col.first,
-                        col.second.first, col.second.second, col.second.third)
-                }
                 matchFound = true
-                break
             }
         }
         if (!matchFound) {
@@ -280,6 +273,15 @@ class MatchColour : AppCompatActivity() {
                     val popupText = findViewById<TextView>(R.id.popup_text)
                     popupText.text = getString(R.string.match_not_found)
                 }
+            }
+        }
+        else{
+            runOnUiThread{
+                val col = getColourFromFile(closestMatch.first)
+
+                val popupText = findViewById<TextView>(R.id.popup_text)
+                popupText.text = getString(R.string.match_found, col.first,
+                    col.second.first, col.second.second, col.second.third)
             }
         }
         popupView.visibility = View.VISIBLE
